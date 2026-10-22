@@ -1,6 +1,5 @@
 import java.io.PrintStream;
 
-/** Определение (реализация) метода printHelloWorld. */
 final class HelloImpl {
     private HelloImpl() {
     }
