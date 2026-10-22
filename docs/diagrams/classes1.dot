@@ -1,0 +1,68 @@
+digraph G {
+graph [rankdir=TB, fontname="Liberation Sans", fontsize=12, nodesep=0.3, ranksep=0.5, newrank=true, pad=0.2, bgcolor=white];
+node [shape=plain, fontname="Liberation Sans", fontsize=11];
+edge [fontname="Liberation Sans", fontsize=10, color="#222222", arrowsize=0.9, labeldistance=1.6, labelangle=30];
+subgraph cluster_app { label=<<B>ru.edu.sqlreport (приложение)</B>>; labeljust=l; style="rounded"; color="#9aa3b2"; bgcolor="#fbfbf7";
+  ReportCli [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>ReportCli</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">- engine: ReportEngine<BR/>- format: OutputFormat</TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ main(args: String[]): void<BR/>- runRepl(): void<BR/>- runScript(path: Path): void</TD></TR></TABLE>>];
+  ReportEngine [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><FONT POINT-SIZE="10"><I>«facade»</I></FONT><BR/><B>ReportEngine</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">- catalog: TableCatalog<BR/>- functions: FunctionRegistry<BR/>- planner: QueryPlanner</TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ execute(sql: String): ResultTable<BR/>+ describe(file: String): Schema<BR/>+ registerFunction(name: String, f: Supplier)</TD></TR></TABLE>>];
+}
+subgraph cluster_parser { label=<<B>parser</B>>; labeljust=l; style="rounded"; color="#9aa3b2"; bgcolor="#fbfbf7";
+  Lexer [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>Lexer</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">- source: String<BR/>- pos: int<BR/>- line: int<BR/>- column: int</TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ tokenize(sql: String): List&lt;Token&gt;<BR/>- nextToken(): Token</TD></TR></TABLE>>];
+  Token [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>Token</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ type: TokenType<BR/>+ text: String<BR/>+ line: int<BR/>+ column: int</TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4"> </TD></TR></TABLE>>];
+  TokenType [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><FONT POINT-SIZE="10"><I>«enumeration»</I></FONT><BR/><B>TokenType</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">SELECT, FROM, WHERE, JOIN, ON,<BR/>GROUP_BY, HAVING, ORDER_BY, LIMIT,<BR/>IDENT, NUMBER, STRING, OPERATOR, EOF</TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4"> </TD></TR></TABLE>>];
+  Parser [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>Parser</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">- tokens: List&lt;Token&gt;<BR/>- pos: int</TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ parse(tokens): SelectStatement<BR/>- parseSelectList(): List&lt;SelectItem&gt;<BR/>- parseExpression(): Expression<BR/>- expect(type: TokenType): Token</TD></TR></TABLE>>];
+  QueryException [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>QueryException</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4"># line: int<BR/># column: int</TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ getMessage(): String</TD></TR></TABLE>>];
+  SyntaxException [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>SyntaxException</B></TD></TR></TABLE>>];
+  SemanticException [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>SemanticException</B></TD></TR></TABLE>>];
+}
+subgraph cluster_ast { label=<<B>ast</B>>; labeljust=l; style="rounded"; color="#9aa3b2"; bgcolor="#fbfbf7";
+  SelectStatement [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>SelectStatement</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ items: List&lt;SelectItem&gt;<BR/>+ from: TableRef<BR/>+ joins: List&lt;JoinClause&gt;<BR/>+ where: Expression<BR/>+ groupBy: List&lt;Expression&gt;<BR/>+ having: Expression<BR/>+ orderBy: List&lt;OrderItem&gt;<BR/>+ limit: Integer</TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4"> </TD></TR></TABLE>>];
+  Expression [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><FONT POINT-SIZE="10"><I>«interface»</I></FONT><BR/><B>Expression</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4"> </TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ evaluate(row: Row): Value<BR/>+ accept(v: ExprVisitor)</TD></TR></TABLE>>];
+  ColumnRef [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>ColumnRef</B></TD></TR></TABLE>>];
+  Literal [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>Literal</B></TD></TR></TABLE>>];
+  BinaryOp [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>BinaryOp</B></TD></TR></TABLE>>];
+  FunctionCall [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>FunctionCall</B></TD></TR></TABLE>>];
+}
+subgraph cluster_out { label=<<B>output</B>>; labeljust=l; style="rounded"; color="#9aa3b2"; bgcolor="#fbfbf7";
+  ResultTable [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>ResultTable</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ schema: Schema<BR/>+ rows: List&lt;Row&gt;</TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ rowCount(): int</TD></TR></TABLE>>];
+  ReportFormatter [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><FONT POINT-SIZE="10"><I>«interface»</I></FONT><BR/><B>ReportFormatter</B></TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4"> </TD></TR><TR><TD ALIGN="LEFT" BALIGN="LEFT" CELLPADDING="4">+ format(r: ResultTable): String</TD></TR></TABLE>>];
+  ConsoleTableFormatter [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>ConsoleTableFormatter</B></TD></TR></TABLE>>];
+  CsvFormatter [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>CsvFormatter</B></TD></TR></TABLE>>];
+  HtmlFormatter [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>HtmlFormatter</B></TD></TR></TABLE>>];
+  MarkdownFormatter [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>MarkdownFormatter</B></TD></TR></TABLE>>];
+}
+QueryPlanner [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>QueryPlanner</B></TD></TR></TABLE>>];
+TableCatalog [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>TableCatalog</B></TD></TR></TABLE>>];
+FunctionRegistry [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>FunctionRegistry</B></TD></TR></TABLE>>];
+Row [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>Row</B></TD></TR></TABLE>>];
+Schema [label=<<TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" COLOR="#222222"><TR><TD BGCOLOR="#e9eef6" CELLPADDING="4"><B>Schema</B></TD></TR></TABLE>>];
+ReportCli -> ReportEngine [arrowhead=vee, headlabel="1", taillabel=""];
+ReportCli -> ReportFormatter [arrowhead=vee, headlabel="1", taillabel=""];
+ReportEngine -> TableCatalog [dir=both, arrowtail=diamond, arrowhead=none, headlabel="1"];
+ReportEngine -> FunctionRegistry [dir=both, arrowtail=diamond, arrowhead=none, headlabel="1"];
+ReportEngine -> QueryPlanner [dir=both, arrowtail=diamond, arrowhead=none, headlabel="1"];
+ReportEngine -> Lexer [arrowhead=vee, style=dashed, label="«create»", fontsize=10];
+ReportEngine -> Parser [arrowhead=vee, style=dashed, label="«create»", fontsize=10];
+ReportEngine -> ResultTable [arrowhead=vee, style=dashed, label="«create»", fontsize=10];
+Lexer -> Token [arrowhead=vee, style=dashed, label="«create»", fontsize=10];
+Token -> TokenType [arrowhead=vee, headlabel="1", taillabel=""];
+Parser -> SelectStatement [arrowhead=vee, style=dashed, label="«create»", fontsize=10];
+Parser -> SyntaxException [arrowhead=vee, style=dashed, label="«throw»", fontsize=10];
+SyntaxException -> QueryException [arrowhead=onormal];
+SemanticException -> QueryException [arrowhead=onormal];
+SelectStatement -> Expression [dir=both, arrowtail=diamond, arrowhead=none, headlabel="0..*"];
+ColumnRef -> Expression [arrowhead=onormal, style=dashed];
+Literal -> Expression [arrowhead=onormal, style=dashed];
+BinaryOp -> Expression [arrowhead=onormal, style=dashed];
+FunctionCall -> Expression [arrowhead=onormal, style=dashed];
+BinaryOp -> Expression [dir=both, arrowtail=odiamond, arrowhead=none, headlabel="2"];
+QueryPlanner -> SemanticException [arrowhead=vee, style=dashed, label="«throw»", fontsize=10];
+QueryPlanner -> TableCatalog [arrowhead=vee, headlabel="1", taillabel=""];
+ResultTable -> Schema [arrowhead=vee, headlabel="1", taillabel=""];
+ResultTable -> Row [dir=both, arrowtail=diamond, arrowhead=none, headlabel="0..*"];
+ConsoleTableFormatter -> ReportFormatter [arrowhead=onormal, style=dashed];
+CsvFormatter -> ReportFormatter [arrowhead=onormal, style=dashed];
+HtmlFormatter -> ReportFormatter [arrowhead=onormal, style=dashed];
+MarkdownFormatter -> ReportFormatter [arrowhead=onormal, style=dashed];
+ReportFormatter -> ResultTable [arrowhead=vee, style=dashed, label="«use»", fontsize=10];
+}
