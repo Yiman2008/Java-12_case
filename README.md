@@ -53,5 +53,3 @@ java -jar target/sqlreport-0.3.0.jar --format HTML --out report.html -q "SELECT 
 - picocli 4.7.7 — разбор параметров и справка CLI.
 - JUnit Jupiter 5.11.4 — тесты, выполняемые при сборке. В исполняемый JAR JUnit не включается.
 - Maven Shade Plugin — сборка JAR с зависимостью picocli.
-
-[Практическая работа № 3 — отчёт в PDF](docs/sqlreport-practice-3.pdf)
