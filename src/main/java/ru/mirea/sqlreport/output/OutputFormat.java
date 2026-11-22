@@ -3,7 +3,6 @@ package ru.mirea.sqlreport.output;
 import ru.mirea.sqlreport.model.ResultTable;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public enum OutputFormat {
     TABLE(OutputFormat::table),
@@ -22,18 +21,19 @@ public enum OutputFormat {
     }
 
     private static String table(ResultTable table) {
-        List<String> headers = table.headers().stream().map(OutputFormat::singleLine).toList();
-        List<List<String>> rows = table.rows().stream()
-                .map(row -> row.stream().map(OutputFormat::singleLine).toList()).toList();
-        int[] widths = headers.stream().mapToInt(String::length).toArray();
-        for (List<String> row : rows) {
+        int[] widths = new int[table.headers().size()];
+        for (int index = 0; index < widths.length; index++) {
+            widths[index] = singleLine(table.headers().get(index)).length();
+        }
+        for (List<String> row : table.rows()) {
             for (int index = 0; index < widths.length; index++) {
-                widths[index] = Math.max(widths[index], row.get(index).length());
+                int cellWidth = singleLine(row.get(index)).length();
+                widths[index] = Math.max(widths[index], cellWidth);
             }
         }
         StringBuilder result = new StringBuilder();
-        appendTableRow(result, headers, widths);
-        for (List<String> row : rows) {
+        appendTableRow(result, table.headers(), widths);
+        for (List<String> row : table.rows()) {
             appendTableRow(result, row, widths);
         }
         return result.toString();
@@ -44,7 +44,7 @@ public enum OutputFormat {
             if (index > 0) {
                 output.append(" | ");
             }
-            String value = row.get(index);
+            String value = singleLine(row.get(index));
             output.append(value);
             if (index + 1 < widths.length) {
                 output.append(" ".repeat(widths[index] - value.length()));
@@ -56,12 +56,19 @@ public enum OutputFormat {
     private static String csv(ResultTable table) {
         StringBuilder result = new StringBuilder();
         appendCsvRow(result, table.headers());
-        table.rows().forEach(row -> appendCsvRow(result, row));
+        for (List<String> row : table.rows()) {
+            appendCsvRow(result, row);
+        }
         return result.toString();
     }
 
     private static void appendCsvRow(StringBuilder output, List<String> row) {
-        output.append(row.stream().map(OutputFormat::csvCell).collect(Collectors.joining(","))).append("\r\n");
+        String separator = "";
+        for (String value : row) {
+            output.append(separator).append(csvCell(value));
+            separator = ",";
+        }
+        output.append("\r\n");
     }
 
     private static String csvCell(String value) {
@@ -77,7 +84,9 @@ public enum OutputFormat {
                 + "<title>SQLReport</title>\n<table>\n<thead>");
         appendHtmlRow(result, "th", table.headers());
         result.append("</thead>\n<tbody>\n");
-        table.rows().forEach(row -> appendHtmlRow(result, "td", row));
+        for (List<String> row : table.rows()) {
+            appendHtmlRow(result, "td", row);
+        }
         return result.append("</tbody>\n</table>\n</html>\n").toString();
     }
 
@@ -94,15 +103,22 @@ public enum OutputFormat {
         StringBuilder result = new StringBuilder();
         appendMarkdownRow(result, table.headers());
         result.append("|").append(" --- |".repeat(table.headers().size())).append('\n');
-        table.rows().forEach(row -> appendMarkdownRow(result, row));
+        for (List<String> row : table.rows()) {
+            appendMarkdownRow(result, row);
+        }
         return result.toString();
     }
 
     private static void appendMarkdownRow(StringBuilder output, List<String> row) {
-        String cells = row.stream().map(OutputFormat::singleLine).map(OutputFormat::escapeHtml)
-                .map(value -> value.replace("\\", "\\\\").replace("|", "\\|"))
-                .collect(Collectors.joining(" | "));
-        output.append("| ").append(cells).append(" |\n");
+        output.append("| ");
+        String separator = "";
+        for (String value : row) {
+            String cell = escapeHtml(singleLine(value));
+            cell = cell.replace("\\", "\\\\").replace("|", "\\|");
+            output.append(separator).append(cell);
+            separator = " | ";
+        }
+        output.append(" |\n");
     }
 
     private static String escapeHtml(String value) {

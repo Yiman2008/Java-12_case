@@ -20,21 +20,39 @@ public final class QueryExecutor {
         }
         List<Query.SelectItem> select = expand(query.columns(), source.headers());
         List<String> labels = select.stream().map(Query.SelectItem::label).toList();
-        boolean aggregate = select.stream().anyMatch(item -> item.aggregate() != null);
-        validate(query, select, labels, indexes.keySet(), aggregate);
+        boolean groupedQuery = !query.groupBy().isEmpty();
+        for (Query.SelectItem item : select) {
+            if (item.aggregate() != null) {
+                groupedQuery = true;
+                break;
+            }
+        }
+        validate(query, select, labels, indexes.keySet(), groupedQuery);
 
-        List<List<String>> rows = source.rows().stream()
-                .filter(row -> query.filter() == null
-                        || query.filter().test(column -> row.get(indexes.get(column))))
-                .toList();
+        // WHERE выполняется до группировки и вычисления агрегатов.
+        List<List<String>> matchingRows = new ArrayList<>();
+        for (List<String> row : source.rows()) {
+            if (query.filter() == null || query.filter().test(column -> row.get(indexes.get(column)))) {
+                matchingRows.add(row);
+            }
+        }
+
         List<List<String>> result = new ArrayList<>();
-        if (aggregate || !query.groupBy().isEmpty()) {
-            for (List<List<String>> group : group(rows, query.groupBy(), indexes)) {
-                result.add(select.stream().map(item -> projectGroup(item, group, indexes)).toList());
+        if (groupedQuery) {
+            for (List<List<String>> group : group(matchingRows, query.groupBy(), indexes)) {
+                List<String> resultRow = new ArrayList<>();
+                for (Query.SelectItem item : select) {
+                    resultRow.add(projectGroup(item, group, indexes));
+                }
+                result.add(resultRow);
             }
         } else {
-            for (List<String> row : rows) {
-                result.add(select.stream().map(item -> row.get(indexes.get(item.column()))).toList());
+            for (List<String> row : matchingRows) {
+                List<String> resultRow = new ArrayList<>();
+                for (Query.SelectItem item : select) {
+                    resultRow.add(row.get(indexes.get(item.column())));
+                }
+                result.add(resultRow);
             }
         }
         if (query.orderBy() != null) {
@@ -45,10 +63,16 @@ public final class QueryExecutor {
 
     private List<Query.SelectItem> expand(List<Query.SelectItem> columns, List<String> headers) {
         if (columns.size() == 1 && wildcard(columns.get(0))) {
-            return headers.stream().map(header -> new Query.SelectItem(header, null, header)).toList();
+            List<Query.SelectItem> expanded = new ArrayList<>();
+            for (String header : headers) {
+                expanded.add(new Query.SelectItem(header, null, header));
+            }
+            return expanded;
         }
-        if (columns.stream().anyMatch(this::wildcard)) {
-            throw new IllegalArgumentException("SELECT * используется без других элементов SELECT");
+        for (Query.SelectItem item : columns) {
+            if (wildcard(item)) {
+                throw new IllegalArgumentException("SELECT * используется без других элементов SELECT");
+            }
         }
         return columns;
     }
@@ -58,13 +82,13 @@ public final class QueryExecutor {
     }
 
     private void validate(Query query, List<Query.SelectItem> select, List<String> labels,
-                          Set<String> headers, boolean aggregate) {
+                          Set<String> headers, boolean groupedQuery) {
         Set<String> referenced = new LinkedHashSet<>(query.groupBy());
         for (Query.SelectItem item : select) {
             if (item.column() != null) {
                 referenced.add(item.column());
             }
-            if ((aggregate || !query.groupBy().isEmpty()) && item.aggregate() == null
+            if (groupedQuery && item.aggregate() == null
                     && !query.groupBy().contains(item.column())) {
                 throw new IllegalArgumentException("Добавьте столбец в GROUP BY: " + item.column());
             }
@@ -91,8 +115,16 @@ public final class QueryExecutor {
         }
         Map<List<String>, List<List<String>>> groups = new LinkedHashMap<>();
         for (List<String> row : rows) {
-            List<String> key = groupBy.stream().map(column -> row.get(indexes.get(column))).toList();
-            groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(row);
+            List<String> key = new ArrayList<>();
+            for (String column : groupBy) {
+                key.add(row.get(indexes.get(column)));
+            }
+            List<List<String>> matchingGroup = groups.get(key);
+            if (matchingGroup == null) {
+                matchingGroup = new ArrayList<>();
+                groups.put(key, matchingGroup);
+            }
+            matchingGroup.add(row);
         }
         return groups.values();
     }
@@ -105,7 +137,13 @@ public final class QueryExecutor {
             return Integer.toString(group.size());
         }
         int column = indexes.get(item.column());
-        List<String> values = group.stream().map(row -> row.get(column)).filter(value -> !value.isEmpty()).toList();
+        List<String> values = new ArrayList<>();
+        for (List<String> row : group) {
+            String value = row.get(column);
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
         if (item.aggregate() == Query.Aggregate.COUNT) {
             return Integer.toString(values.size());
         }
@@ -113,10 +151,7 @@ public final class QueryExecutor {
             return "";
         }
         if (item.aggregate() == Query.Aggregate.MIN || item.aggregate() == Query.Aggregate.MAX) {
-            boolean numeric = values.stream().allMatch(value -> decimal(value) != null);
-            boolean min = item.aggregate() == Query.Aggregate.MIN;
-            return values.stream().reduce((a, b) -> (min ? compare(a, b, numeric) <= 0
-                    : compare(a, b, numeric) >= 0) ? a : b).orElseThrow();
+            return findExtreme(values, item.aggregate() == Query.Aggregate.MIN);
         }
         BigDecimal sum = BigDecimal.ZERO;
         for (String value : values) {
@@ -132,9 +167,27 @@ public final class QueryExecutor {
         return result.stripTrailingZeros().toPlainString();
     }
 
+    private String findExtreme(List<String> values, boolean minimum) {
+        boolean numeric = true;
+        for (String value : values) {
+            if (decimal(value) == null) {
+                numeric = false;
+                break;
+            }
+        }
+        String best = values.get(0);
+        for (int index = 1; index < values.size(); index++) {
+            String value = values.get(index);
+            int comparison = compare(value, best, numeric);
+            if ((minimum && comparison < 0) || (!minimum && comparison > 0)) {
+                best = value;
+            }
+        }
+        return best;
+    }
+
     private void sort(List<List<String>> rows, int index, boolean descending) {
-        boolean numeric = rows.stream().map(row -> row.get(index))
-                .filter(value -> !value.isEmpty()).allMatch(value -> decimal(value) != null);
+        boolean numeric = isNumericColumn(rows, index);
         rows.sort((left, right) -> {
             String a = left.get(index);
             String b = right.get(index);
@@ -143,6 +196,16 @@ public final class QueryExecutor {
             }
             return descending ? compare(b, a, numeric) : compare(a, b, numeric);
         });
+    }
+
+    private boolean isNumericColumn(List<List<String>> rows, int index) {
+        for (List<String> row : rows) {
+            String value = row.get(index);
+            if (!value.isEmpty() && decimal(value) == null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private int compare(String left, String right, boolean numeric) {
