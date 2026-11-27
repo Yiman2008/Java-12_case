@@ -1,0 +1,23 @@
+name: Maven
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - run: mvn --batch-mode clean package
+      - name: Run executable JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -jar target/sqlreport-0.3.0.jar --help
+          java -jar target/sqlreport-0.3.0.jar --format CSV --out report.csv -q \
+            'SELECT name, AVG(grade) AS avg_grade, COUNT(*) AS n FROM examples/students.csv WHERE grade >= 3 GROUP BY name ORDER BY avg_grade DESC LIMIT 2;'
+          printf 'name,avg_grade,n\r\nAnna,4.5,2\r\nBoris,4,2\r\n' | diff - report.csv
